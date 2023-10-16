@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 #define MAX_COMMAND_LENGTH 1024
 #define MAX_ARGUMENTS 30
@@ -71,6 +72,14 @@ int main() {
         } else if (pid == 0) {
             // Child process
             // If execvp fails, try locating and executing the program using absolute or relative path
+            struct stat path_stat;
+            if (stat(arguments[0], &path_stat) == 0) {
+                if (S_ISDIR(path_stat.st_mode)) { // Check if the path is a directory
+                    printf("%s: Is a directory\n", arguments[0]);
+                    exit(EXIT_FAILURE);
+                }
+            }
+
             if (access(arguments[0], X_OK) == 0) { // chk accessible and executable
                 execv(arguments[0], arguments);
             } else if (access(arguments[0], F_OK) == 0) { // chk exists but not executable
