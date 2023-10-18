@@ -33,6 +33,7 @@ void printProcessInfo(pid_t pid) {
     }
 
     fscanf(file, "%*d %s %c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %lu %lu %*d %*d %*d %*d %*d %*d %*d %*d %*d %d", comm, &state, &ppid, &utime, &stime, &excode);
+
     fclose(file);
 
     printf("\n"); // Insert an empty line before process information
@@ -50,13 +51,6 @@ void printChildProcessInfo(pid_t pid) {
     // This is the parent process
     // Wait for the child process to complete
     waitpid(pid, &status, 0);
-
-    // Check if the child process exited successfully
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        // Do nothing
-    } else {
-        printf("Child process did not exit successfully\n");
-    }
 }
 
 
@@ -73,6 +67,7 @@ int is_pid_folder(const struct dirent *entry) {
 }
 
 int main() {
+    printf("## JCshell [%d] ## ", getpid());
     char command[MAX_COMMAND_LENGTH];
     pid_t pid;
     int status;
@@ -103,6 +98,7 @@ int main() {
                 break;
             } else {
                 printf("JCshell: \"exit\" with other arguments!!!\n");
+                printf("## JCshell [%d] ## ", getpid());
                 continue;
             }
         }
@@ -134,17 +130,26 @@ int main() {
             exit(1);
         } else {
             // This is the parent process
-            // Print child process information
-            printProcessInfo(pid);
-            printf("\n"); // Insert an empty line after printing process information
+            // siginfo_t is only a placeholder here, can also use siginto.si_pid to access pid
+            siginfo_t info;
+            int status;
 
-            // Wait for the child process to complete
-            printChildProcessInfo(pid);
+            // wait for child to terminate and kept as zombie process
+            // 1st param: P_ALL := any child process; P_PID := process specified as 2nd param
+            // WNOWAIT: Leave the child in a waitable state;
+            //    so that later another wait call can be used to again retrieve the child status information.
+            // WEXITED: wait for processes that have exited
+            int ret = waitid(P_ALL, 0, &info, WNOWAIT | WEXITED);  
+            if (!ret) {
+                printProcessInfo(pid);
+                waitpid(info.si_pid, &status, 0);
+            } else {
+                perror("waitid");
+            }
+
             childExited = 1; // Set the flag to indicate that the child process has exited
         }
     }
 
-    return 0;
-}
     return 0;
 }
