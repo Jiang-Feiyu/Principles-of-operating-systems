@@ -1,6 +1,3 @@
-// Development platform: VsCode (SSH connect to workbench2 Linux)
-// Remark:
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +22,7 @@ void printProcessInfo(pid_t pid) {
     unsigned long utime, stime;
     unsigned long voluntary_ctxt_switches, nonvoluntary_ctxt_switches;
 
+    /* get my own procss statistics */
     sprintf(str, "/proc/%d/stat", (int)pid);
     FILE *file = fopen(str, "r");
     if (file == NULL) {
@@ -32,8 +30,9 @@ void printProcessInfo(pid_t pid) {
         exit(0);
     }
 
+    // read the file
     fscanf(file, "%*d %s %c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %lu %lu %*d %*d %*d %*d %*d %*d %*d %*d %*d %d", comm, &state, &ppid, &utime, &stime, &excode);
-
+    // close the file
     fclose(file);
 
     printf("\n"); // Insert an empty line before process information
@@ -43,27 +42,6 @@ void printProcessInfo(pid_t pid) {
 
 void handleSignal(int signal) {
     // Do nothing
-}
-
-void printChildProcessInfo(pid_t pid) {
-    int status;
-
-    // This is the parent process
-    // Wait for the child process to complete
-    waitpid(pid, &status, 0);
-}
-
-
-// Helper function to check if a struct dirent from /proc is a PID folder.
-int is_pid_folder(const struct dirent *entry) {
-    const char *p;
-
-    for (p = entry->d_name; *p; p++) {
-        if (!isdigit(*p))
-            return 0;
-    }
-
-    return 1;
 }
 
 int main() {
