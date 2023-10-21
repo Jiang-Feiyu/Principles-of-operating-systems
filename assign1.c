@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,7 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <string.h>
+#include <regex.h>
 
 #define MAX_COMMAND_LENGTH 1024
 #define MAX_ARGUMENTS 30
@@ -120,6 +122,7 @@ void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
 
     for (i = 0; i < command_count; i++) {
         waitpid(processes[i].pid, NULL, 0); // 等待子进程结束
+        usleep(1000);
         printProcessInfo(processes[i]); // 输出子进程信息
     }
 }
@@ -155,17 +158,39 @@ int main() {
             break;
         }
 
+        // Check for two | symbols without in-between command
+        if (strstr(command, "||") != NULL || strstr(command, "| |") != NULL) {
+            printf("JCshell: should not have two | symbols without in-between command\n");
+            printf("## JCshell [%d] ## ", jcshell_pid);
+            continue;
+        }
+
         char* commands[MAX_COMMANDS];
         int command_count = 0;
 
         char* token = strtok(command, "|");
         while (token != NULL) {
-            commands[command_count] = token;
+            // Trim leading and trailing spaces
+            char* trimmed_token = token;
+            while (isspace(*trimmed_token)) {
+                trimmed_token++;
+            }
+            int len = strlen(trimmed_token);
+            while (len > 0 && isspace(trimmed_token[len - 1])) {
+                trimmed_token[--len] = '\0';
+            }
+
+            commands[command_count] = trimmed_token;
             command_count++;
             token = strtok(NULL, "|");
         }
 
         execute_pipeline(commands, command_count);
+
+        // Wait for all child processes to exit
+        for (int i = 0; i < command_count; i++) {
+            wait(&status);
+        }
 
         childExited = 1;
     }
