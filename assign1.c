@@ -29,7 +29,6 @@ typedef struct {
 } ProcessInfo;
 
 void printProcessInfo(ProcessInfo process) {
-    printf("\n");
     printf("(PID)%d (CMD)%s (STATE)%c (EXCODE)%d (PPID)%d\n", process.pid, process.cmd, process.state, process.excode, process.ppid);
     printf("(USER)%0.2lf (SYS)%0.2lf (VCTX)%lu (NVCTX)%lu\n", process.user, process.sys, process.vctx, process.nvctx);
 }
