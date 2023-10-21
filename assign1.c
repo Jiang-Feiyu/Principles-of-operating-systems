@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +52,22 @@ void execute_command(char* command) {
     args[arg_count] = NULL;
 
     execvp(args[0], args);
-    perror("JCshell: command execution failed");
+    struct stat path_stat;
+    if (stat(args[0], &path_stat) == 0) {
+        if (S_ISDIR(path_stat.st_mode)) {
+            fprintf(stderr, "%s: Is a directory\n", args[0]);
+            exit(1);
+        } else if (access(args[0], F_OK) == -1) {
+            fprintf(stderr, "JCshell: '%s': No such file or directory\n", args[0]);
+            exit(1);
+        } else if (access(args[0], X_OK) == -1) {
+            fprintf(stderr, "%s: Permission denied\n", args[0]);
+            exit(1);
+        }
+    } else {
+        fprintf(stderr, "JCshell: '%s': No such file or directory\n", args[0]);
+        exit(1);    
+    }
     exit(1);
 }
 
@@ -61,7 +75,7 @@ void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
     int pipes[MAX_COMMANDS - 1][2];
     int i;
 
-    ProcessInfo processes[MAX_COMMANDS]; // 创建保存进程信息的数组
+    ProcessInfo processes[MAX_COMMANDS]; // create an array for saving processes
 
     for (i = 0; i < command_count - 1; i++) {
         if (pipe(pipes[i]) == -1) {
@@ -133,6 +147,7 @@ int main() {
     pid_t pid;
     int status;
     int childExited = 0; // Flag to indicate if the child process has exited
+    const char *regex_pattern = "\\|[^\\s]+\\|"; // Pattern to match | followed by one or more non-space characters and then another |
 
     // Ignore SIGINT signal (Ctrl+C)
     signal(SIGINT, handleSignal);
@@ -142,7 +157,6 @@ int main() {
 
     while (1) {
         if (childExited) {
-            //printf("\n"); // Add a new line after child process exits
             printf("## JCshell [%d] ## ", jcshell_pid);
             childExited = 0;
         }
@@ -150,12 +164,12 @@ int main() {
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0'; // Remove trailing newline character
 
-        if (strncmp(command, "exit ", strlen("exit ")) == 0) {
+        if (strcmp(command, "exit") == 0) {
+            break;
+        } else if (strncmp(command, "exit ", strlen("exit ")) == 0) {
             printf("JCshell: \"exit\" with other arguments!!!\n");
             printf("## JCshell [%d] ## ", jcshell_pid);
             continue;
-        } else if (strncmp(command, "exit", strlen("exit")) == 0) {
-            break;
         }
 
         // Check for two | symbols without in-between command
