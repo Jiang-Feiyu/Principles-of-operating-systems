@@ -29,6 +29,7 @@ typedef struct {
 } ProcessInfo;
 
 void printProcessInfo(ProcessInfo process) {
+    usleep(1000);
     printf("(PID)%d (CMD)%s (STATE)%c (EXCODE)%d (PPID)%d\n", process.pid, process.cmd, process.state, process.excode, process.ppid);
     printf("(USER)%0.2lf (SYS)%0.2lf (VCTX)%lu (NVCTX)%lu\n", process.user, process.sys, process.vctx, process.nvctx);
 }
@@ -112,12 +113,12 @@ void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
 
             execute_command(commands[i]);
         } else {
-            // 父进程保存子进程的信息
+            // Parent process saves information of child processes
             ProcessInfo process;
             process.pid = pid;
             strncpy(process.cmd, commands[i], sizeof(process.cmd));
             process.cmd[sizeof(process.cmd) - 1] = '\0';
-            process.state = 'Z'; // 所有子进程初始状态设为Z
+            process.state = 'Z'; 
             process.excode = 0;
             process.ppid = getpid();
             process.user = 0.0;
@@ -134,19 +135,19 @@ void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
     }
 
     for (i = 0; i < command_count; i++) {
-        waitpid(processes[i].pid, NULL, 0); // 等待子进程结束
+        waitpid(processes[i].pid, NULL, 0); // Wait for child processes to finish/
         usleep(1000);
-        printProcessInfo(processes[i]); // 输出子进程信息
+        printProcessInfo(processes[i]); // Print process information
     }
 }
 
 int main() {
-    printf("## JCshell [%d] ## ", getpid());
-    char command[MAX_COMMAND_LENGTH];
-    pid_t pid;
-    int status;
+    printf("## JCshell [%d] ## ", getpid()); // Print the process ID of JCshell
+    char command[MAX_COMMAND_LENGTH]; // Store the user input command
+    pid_t pid; // Child process ID
+    int status; // Exit status of the child process
     int childExited = 0; // Flag to indicate if the child process has exited
-    const char *regex_pattern = "\\|[^\\s]+\\|"; // Pattern to match | followed by one or more non-space characters and then another |
+    const char *regex_pattern = "\\|[^\\s]+\\|"; // Regular expression pattern to match non-whitespace characters between two vertical bars
 
     // Ignore SIGINT signal (Ctrl+C)
     signal(SIGINT, handleSignal);
@@ -156,17 +157,18 @@ int main() {
 
     while (1) {
         if (childExited) {
-            printf("## JCshell [%d] ## ", jcshell_pid);
+            printf("## JCshell [%d] ## ", jcshell_pid); // Print the JCshell prompt after the child process exits
             childExited = 0;
         }
 
-        fgets(command, sizeof(command), stdin);
-        command[strcspn(command, "\n")] = '\0'; // Remove trailing newline character
+        fgets(command, sizeof(command), stdin); // Read user command from standard input
+        command[strcspn(command, "\n")] = '\0'; // Remove the newline character from the input command
 
         if (strcmp(command, "exit") == 0) {
+            printf("JCshell: Terminated\n"); // User entered "exit", terminate JCshell
             break;
         } else if (strncmp(command, "exit ", strlen("exit ")) == 0) {
-            printf("JCshell: \"exit\" with other arguments!!!\n");
+            printf("JCshell: \"exit\" with other arguments!!!\n"); // User entered "exit" followed by other arguments, display an error message
             printf("## JCshell [%d] ## ", jcshell_pid);
             continue;
         }
@@ -196,12 +198,12 @@ int main() {
             continue;
         }
 
-        char* commands[MAX_COMMANDS];
+        char* commands[MAX_COMMANDS]; // Store individual commands in the pipeline
         int command_count = 0;
 
         char* token = strtok(command, "|");
         while (token != NULL) {
-            // Trim leading and trailing spaces
+            // Remove leading and trailing spaces
             char* trimmed_token = token;
             while (isspace(*trimmed_token)) {
                 trimmed_token++;
@@ -216,7 +218,7 @@ int main() {
             token = strtok(NULL, "|");
         }
 
-        execute_pipeline(commands, command_count);
+        execute_pipeline(commands, command_count); // Execute the pipeline commands
 
         // Wait for all child processes to exit
         for (int i = 0; i < command_count; i++) {
