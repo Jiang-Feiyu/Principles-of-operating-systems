@@ -13,35 +13,115 @@
 
 #define MAX_COMMAND_LENGTH 1024
 #define MAX_ARGUMENTS 30
+#define MAX_COMMANDS 5
 
-void printProcessInfo(pid_t pid) {
-    char str[50];
-    char comm[50];
+typedef struct {
+    pid_t pid;
+    char cmd[50];
     char state;
-    int excode, ppid;
-    unsigned long utime, stime;
-    unsigned long voluntary_ctxt_switches, nonvoluntary_ctxt_switches;
+    int excode;
+    int ppid;
+    double user;
+    double sys;
+    unsigned long vctx;
+    unsigned long nvctx;
+} ProcessInfo;
 
-    /* get my own procss statistics */
-    sprintf(str, "/proc/%d/stat", (int)pid);
-    FILE *file = fopen(str, "r");
-    if (file == NULL) {
-        printf("Error opening stat file: %s\n", str);
-        exit(0);
-    }
-
-    // read the file
-    fscanf(file, "%*d %s %c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %lu %lu %*d %*d %*d %*d %*d %*d %*d %*d %*d %d", comm, &state, &ppid, &utime, &stime, &excode);
-    // close the file
-    fclose(file);
-
-    printf("\n"); // Insert an empty line before process information
-    printf("(PID)%d (CMD)%s (STATE)%c (EXCODE)%d (PPID)%d\n", (int)pid, comm, state, excode, ppid);
-    printf("(USER)%0.2lf (SYS)%0.2lf (VCTX)%lu (NVCTX)%lu\n", utime / (double)sysconf(_SC_CLK_TCK), stime / (double)sysconf(_SC_CLK_TCK), voluntary_ctxt_switches, nonvoluntary_ctxt_switches);
+void printProcessInfo(ProcessInfo process) {
+    printf("\n");
+    printf("(PID)%d (CMD)%s (STATE)%c (EXCODE)%d (PPID)%d\n", process.pid, process.cmd, process.state, process.excode, process.ppid);
+    printf("(USER)%0.2lf (SYS)%0.2lf (VCTX)%lu (NVCTX)%lu\n", process.user, process.sys, process.vctx, process.nvctx);
 }
 
 void handleSignal(int signal) {
     // Do nothing
+}
+
+void execute_command(char* command) {
+    char* args[MAX_ARGUMENTS];
+    int arg_count = 0;
+
+    char* token = strtok(command, " ");
+    while (token != NULL) {
+        args[arg_count] = token;
+        arg_count++;
+        token = strtok(NULL, " ");
+    }
+
+    args[arg_count] = NULL;
+
+    execvp(args[0], args);
+    perror("JCshell: command execution failed");
+    exit(1);
+}
+
+void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
+    int pipes[MAX_COMMANDS - 1][2];
+    int i;
+
+    ProcessInfo processes[MAX_COMMANDS]; // 创建保存进程信息的数组
+
+    for (i = 0; i < command_count - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("JCshell: pipe creation failed");
+            exit(1);
+        }
+    }
+
+    for (i = 0; i < command_count; i++) {
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            perror("JCshell: fork failed");
+            exit(1);
+        } else if (pid == 0) {
+            if (i != 0) {
+                if (dup2(pipes[i - 1][0], STDIN_FILENO) == -1) {
+                    perror("JCshell: dup2 failed");
+                    exit(1);
+                }
+            }
+
+            if (i != command_count - 1) {
+                if (dup2(pipes[i][1], STDOUT_FILENO) == -1) {
+                    perror("JCshell: dup2 failed");
+                    exit(1);
+                }
+            }
+
+            int j;
+            for (j = 0; j < command_count - 1; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            execute_command(commands[i]);
+        } else {
+            // 父进程保存子进程的信息
+            ProcessInfo process;
+            process.pid = pid;
+            strncpy(process.cmd, commands[i], sizeof(process.cmd));
+            process.cmd[sizeof(process.cmd) - 1] = '\0';
+            process.state = 'Z'; // 所有子进程初始状态设为Z
+            process.excode = 0;
+            process.ppid = getpid();
+            process.user = 0.0;
+            process.sys = 0.0;
+            process.vctx = 0;
+            process.nvctx = 0;
+            processes[i] = process;
+        }
+    }
+
+    for (i = 0; i < command_count - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    for (i = 0; i < command_count; i++) {
+        waitpid(processes[i].pid, NULL, 0); // 等待子进程结束
+        printProcessInfo(processes[i]); // 输出子进程信息
+    }
 }
 
 int main() {
@@ -59,74 +139,35 @@ int main() {
 
     while (1) {
         if (childExited) {
-            printf("## JCshell [%d] ## ", jcshell_pid); // print PID
-            childExited = 0; // Reset the flag
+            //printf("\n"); // Add a new line after child process exits
+            printf("## JCshell [%d] ## ", jcshell_pid);
+            childExited = 0;
         }
 
-        fgets(command, MAX_COMMAND_LENGTH, stdin);
+        fgets(command, sizeof(command), stdin);
+        command[strcspn(command, "\n")] = '\0'; // Remove trailing newline character
 
-        // Remove trailing newline character
-        command[strcspn(command, "\n")] = '\0';
-
-        // Exit if the command is "exit"
-        char *token = strtok(command, " ");
-        if (token != NULL && strcmp(token, "exit") == 0) {
-            token = strtok(NULL, " ");
-            if (token == NULL) {
-                break;
-            } else {
-                printf("JCshell: \"exit\" with other arguments!!!\n");
-                printf("## JCshell [%d] ## ", getpid());
-                continue;
-            }
+        if (strncmp(command, "exit ", strlen("exit ")) == 0) {
+            printf("JCshell: \"exit\" with other arguments!!!\n");
+            printf("## JCshell [%d] ## ", jcshell_pid);
+            continue;
+        } else if (strncmp(command, "exit", strlen("exit")) == 0) {
+            break;
         }
 
-        char *arguments[MAX_ARGUMENTS];
-        int argCount = 0;
+        char* commands[MAX_COMMANDS];
+        int command_count = 0;
 
-        while (token != NULL && argCount < MAX_ARGUMENTS - 1) {
-            arguments[argCount] = token;
-            token = strtok(NULL, " ");
-            argCount++;
+        char* token = strtok(command, "|");
+        while (token != NULL) {
+            commands[command_count] = token;
+            command_count++;
+            token = strtok(NULL, "|");
         }
 
-        arguments[argCount] = NULL;
+        execute_pipeline(commands, command_count);
 
-        // Fork a child process
-        pid = fork();
-
-        if (pid < 0) {
-            printf("Fork failed\n");
-            return 1;
-        } else if (pid == 0) {
-            // This is the child process
-            // Execute the command in the child process
-            execvp(arguments[0], arguments);
-
-            // If execvp returns, there was an error
-            printf("Error executing the command: %s\n", strerror(errno));
-            exit(1);
-        } else {
-            // This is the parent process
-            // siginfo_t is only a placeholder here, can also use siginto.si_pid to access pid
-            siginfo_t info;
-            int status;
-
-            // wait for child to terminate and kept as zombie process
-            // 1st param: P_ALL := any child process; P_PID := process specified as 2nd param
-            // WNOWAIT: Leave the child in a waitable state;
-            //    so that later another wait call can be used to again retrieve the child status information.
-            // WEXITED: wait for processes that have exited
-            int ret = waitid(P_ALL, 0, &info, WNOWAIT | WEXITED);  
-            if (!ret) {
-                printProcessInfo(pid);
-                waitpid(info.si_pid, &status, 0);
-            } else {
-                perror("waitid");
-            }
-
-            childExited = 1; // Set the flag to indicate that the child process has exited
-        }
+        childExited = 1;
     }
 
     return 0;
