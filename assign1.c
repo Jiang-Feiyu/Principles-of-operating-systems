@@ -179,6 +179,24 @@ int main() {
             continue;
         }
 
+        // Check for multiple spaces between | symbols
+        regex_t regex;
+        int ret = regcomp(&regex, "\\|\\s+\\|", REG_EXTENDED);
+        if (ret != 0) {
+            fprintf(stderr, "JCshell: regex compilation failed\n");
+            printf("## JCshell [%d] ## ", jcshell_pid);
+            continue;
+        }
+
+        ret = regexec(&regex, command, 0, NULL, 0);
+        regfree(&regex);
+
+        if (ret == 0) {
+            printf("JCshell: should not have more than one space between | symbols\n");
+            printf("## JCshell [%d] ## ", jcshell_pid);
+            continue;
+        }
+
         char* commands[MAX_COMMANDS];
         int command_count = 0;
 
