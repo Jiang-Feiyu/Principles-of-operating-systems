@@ -1,5 +1,5 @@
 # Principles-of-operating-systems
-This is the course material of COMP3230
+This is the course material of HKU COMP3230
 # Set up computing platform
 ## Install the docker application and run a Ubuntu docker container on Windows or Mac (intel or Apple CPU)
 - Download: 
