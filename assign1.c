@@ -18,6 +18,11 @@
 
 typedef struct {
     pid_t pid;
+    char cmd[MAX_COMMAND_LENGTH];
+} ProcessId;
+
+typedef struct {
+    pid_t pid;
     char cmd[50];
     char state;
     int excode;
@@ -28,10 +33,40 @@ typedef struct {
     unsigned long nvctx;
 } ProcessInfo;
 
-void printProcessInfo(ProcessInfo process) {
-    usleep(1000);
-    printf("(PID)%d (CMD)%s (STATE)%c (EXCODE)%d (PPID)%d\n", process.pid, process.cmd, process.state, process.excode, process.ppid);
-    printf("(USER)%0.2lf (SYS)%0.2lf (VCTX)%lu (NVCTX)%lu\n", process.user, process.sys, process.vctx, process.nvctx);
+void printProcessInfo(pid_t pid, int i, ProcessInfo* processes) {
+    char str[50];
+    char comm[50];
+    char state;
+    int excode, ppid;
+    unsigned long utime, stime;
+    unsigned long voluntary_ctxt_switches = 0, nonvoluntary_ctxt_switches = 0; // Initialization
+    // printf("\npid %d \n", (int)pid);
+
+    /* get my own procss statistics */
+    sprintf(str, "/proc/%d/stat", (int)pid);
+    FILE *file = fopen(str, "r");
+    if (file == NULL) {
+        printf("Error opening stat file: %s\n", str);
+        exit(0);
+    }
+
+    // read the file
+    fscanf(file, "%*d %s %c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %lu %lu %*d %*d %*d %*d %*d %*d %*d %*d %*d %d", comm, &state, &ppid, &utime, &stime, &excode);
+
+    // close the file
+    fclose(file);
+
+    ProcessInfo process;
+    process.pid = (int)pid;
+    strcpy(process.cmd, comm);
+    process.state = state;
+    process.excode = excode;
+    process.ppid = ppid;
+    process.user = utime / (double)sysconf(_SC_CLK_TCK);
+    process.sys = stime / (double)sysconf(_SC_CLK_TCK);
+    process.vctx = voluntary_ctxt_switches;
+    process.nvctx = nonvoluntary_ctxt_switches;
+    processes[i] = process;
 }
 
 void handleSignal(int signal) {
@@ -74,8 +109,8 @@ void execute_command(char* command) {
 void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
     int pipes[MAX_COMMANDS - 1][2];
     int i;
-
     ProcessInfo processes[MAX_COMMANDS]; // create an array for saving processes
+    ProcessId processesID[MAX_COMMANDS]; // create an array for saving processes id
 
     for (i = 0; i < command_count - 1; i++) {
         if (pipe(pipes[i]) == -1) {
@@ -113,19 +148,26 @@ void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
 
             execute_command(commands[i]);
         } else {
-            // Parent process saves information of child processes
-            ProcessInfo process;
-            process.pid = pid;
-            strncpy(process.cmd, commands[i], sizeof(process.cmd));
-            process.cmd[sizeof(process.cmd) - 1] = '\0';
-            process.state = 'Z'; 
-            process.excode = 0;
-            process.ppid = getpid();
-            process.user = 0.0;
-            process.sys = 0.0;
-            process.vctx = 0;
-            process.nvctx = 0;
-            processes[i] = process;
+            // parent process
+            processesID[i].pid = pid; // save child process's PID into processesID
+            strncpy(processesID[i].cmd, commands[i], MAX_COMMAND_LENGTH); // save command in processesID.cmd
+            if (i != command_count - 1) {
+                close(pipes[i][1]);
+            }
+        }
+    }
+
+    // After the loop, end the whole process
+    for (i = 0; i < command_count; i++) {
+        siginfo_t info;
+        int status;
+        int ret = waitid(P_PID, processesID[i].pid, &info, WNOWAIT | WEXITED);
+        if (!ret) {
+            // printf("info.si_pid: %d and %d", info.si_pid, (int)i); // print info.si_pid
+            printProcessInfo(info.si_pid, i, processes);
+        } else {
+            perror("JCshell: waitid failed");
+            exit(1);
         }
     }
 
@@ -135,9 +177,8 @@ void execute_pipeline(char* commands[MAX_COMMANDS], int command_count) {
     }
 
     for (i = 0; i < command_count; i++) {
-        waitpid(processes[i].pid, NULL, 0); // Wait for child processes to finish/
         usleep(1000);
-        printProcessInfo(processes[i]); // Print process information
+        printf("(PID)%d (CMD)%s (STATE)%c (EXCODE)%d (PPID)%d(USER)%0.2lf (SYS)%0.2lf (VCTX)%lu (NVCTX)%lu\n", processes[i].pid, processes[i].cmd, processes[i].state, processes[i].excode, processes[i].ppid, processes[i].user, processes[i].sys, processes[i].vctx, processes[i].nvctx);
     }
 }
 
