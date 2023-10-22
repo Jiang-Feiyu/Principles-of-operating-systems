@@ -40,9 +40,10 @@ void printProcessInfo(pid_t pid, int i, ProcessInfo* processes) {
     int excode, ppid;
     unsigned long utime, stime;
     unsigned long voluntary_ctxt_switches = 0, nonvoluntary_ctxt_switches = 0; // Initialization
+
     // printf("\npid %d \n", (int)pid);
 
-    /* get my own procss statistics */
+    /* get my own process statistics */
     sprintf(str, "/proc/%d/stat", (int)pid);
     FILE *file = fopen(str, "r");
     if (file == NULL) {
@@ -51,7 +52,24 @@ void printProcessInfo(pid_t pid, int i, ProcessInfo* processes) {
     }
 
     // read the file
-    fscanf(file, "%*d %s %c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %lu %lu %*d %*d %*d %*d %*d %*d %*d %*d %*d %d", comm, &state, &ppid, &utime, &stime, &excode);
+    fscanf(file, "%*d %s %c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu %lu", comm, &state, &ppid, &utime, &stime);
+
+    // close the file
+    fclose(file);
+
+    sprintf(str, "/proc/%d/status", (int)pid);
+    file = fopen(str, "r");
+    if (file == NULL) {
+        printf("Error opening status file: %s\n", str);
+        exit(0);
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "voluntary_ctxt_switches: %lu", &voluntary_ctxt_switches) == 1) {
+            break;
+        }
+    }
 
     // close the file
     fclose(file);
