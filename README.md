@@ -15,3 +15,5 @@ This is the course material of HKU COMP3230
 </br> `docker ps`
 </br> `docker stop $(CONTAINER ID)`
 - When running docker, a new container will be created everytime. Can delete container by `docker rm $(container name / id)`
+# VsCode SSH connection
+`Shift + Ctrl + P`
