@@ -78,7 +78,6 @@ void *thr_func(void *arg)
     intptr_t id = (intptr_t)arg;  // Cast argument to intptr_t to get the thread id
     int start_row, end_row;
 
-    long id = (long)arg;  // Cast argument to long to get the thread id
     printf("Thread %ld started\n", id);
 
     while (1)
