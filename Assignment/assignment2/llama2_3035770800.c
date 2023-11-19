@@ -89,6 +89,7 @@ void *thr_func(void *arg)
             printf("Thread %ld waiting for work_start...\n", id);
             pthread_cond_wait(&con[id], &mutex[id]);
         }
+
         printf("Thread %ld work_start received\n", id);
 
         if (terminate)
@@ -184,6 +185,7 @@ int init_mat_vec_mul(int thr_count) {
 // c. Main thread wait until all threads finished task, and then return
 void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 {
+    terminate = 0;  // Reset terminate flag at the beginning of the function
     printf("mat_vec_mul start\n");
     if (thread_count == 0)
     {
@@ -200,6 +202,7 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         return;
     }
 
+    // Assign the new parameters to the threads and signal threads to start work
     // Assign the new parameters to the threads and signal threads to start work
     for (int i = 0; i < thread_count; i++)
     {
