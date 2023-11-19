@@ -75,7 +75,7 @@ struct thread_data *thread_datas;
 // d. Being able to collet the system usage (of itself) and terminate
 void *thr_func(void *arg)
 {
-    long id = (long)arg; // Cast argument to long to get the thread id
+    intptr_t id = (intptr_t)arg;  // Cast argument to intptr_t to get the thread id
     int start_row, end_row;
 
     while (1)
@@ -158,8 +158,10 @@ int init_mat_vec_mul(int thr_count) {
         *(thread_datas[i].work_done) = 0;   // Initialize work_done to 0
 
         printf("Creating thread %d\n", i); // print the info of threads
+
         // Create a thread and pass the address of the thread data structure as an argument
-        pthread_create(&threads[i], NULL, thr_func, (void*)i);  // 传递线程 ID 作为参数
+        intptr_t thread_id = (intptr_t)i;
+        pthread_create(&threads[i], NULL, thr_func, (void*)thread_id);  // 传递线程 ID 作为参数
     }
 
     sleep(0); // Threads will fall asleep immediately
