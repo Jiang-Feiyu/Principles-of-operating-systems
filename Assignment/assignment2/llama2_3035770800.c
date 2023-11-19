@@ -83,12 +83,15 @@ void *thr_func(void *arg)
     while (1)
     {
         pthread_mutex_lock(&mutex[id]);
-        while (!*(thread_datas[id].work_start) && /*!terminate*/ 1)
+        printf("Thread %ld waiting for work_start\n", id);
+        while (!*(thread_datas[id].work_start) && !terminate)
         {
+            printf("Thread %ld waiting for work_start...\n", id);
             pthread_cond_wait(&con[id], &mutex[id]);
         }
+        printf("Thread %ld work_start received\n", id);
 
-        if (/*!terminate*/ 1)
+        if (terminate)
         {
             pthread_mutex_unlock(&mutex[id]);
             break; // Exit the thread loop if termination flag is set
@@ -105,6 +108,8 @@ void *thr_func(void *arg)
         { // Last thread takes any extra rows
             end_row += extra_rows;
         }
+
+        printf("Thread %ld working on rows %d to %d\n", id, start_row, end_row);
 
         *(thread_datas[id].work_start) = 0; // Reset the work_start flag
         pthread_mutex_unlock(&mutex[id]);
@@ -131,6 +136,7 @@ void *thr_func(void *arg)
     printf("Thread %ld exiting\n", id); // for debug
     return NULL;
 }
+
 
 // a. Create n threads
 // b. Let threads identify themselves, i.e., each thread knows it is the i-th threads
@@ -178,6 +184,7 @@ int init_mat_vec_mul(int thr_count) {
 // c. Main thread wait until all threads finished task, and then return
 void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 {
+    printf("mat_vec_mul start\n");
     if (thread_count == 0)
     {
         // Perform matrix-vector multiplication sequentially
@@ -219,6 +226,7 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         *(thread_datas[i].work_done) = 0; // Reset the work_done flag
         pthread_mutex_unlock(&mutex[i]);
     }
+    printf("mat_vec_mul end\n");
 }
 
 // a. Wake up threads to collect the system usage (of themselves) and terminates
