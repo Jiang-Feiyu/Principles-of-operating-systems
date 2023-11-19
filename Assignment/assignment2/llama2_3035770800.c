@@ -132,9 +132,8 @@ void *thr_func(void *arg)
 // a. Create n threads
 // b. Let threads identify themselves, i.e., each thread knows it is the i-th threads
 // c. Let the created threads fall asleep immediately
-int init_mat_vec_mul(int thr_count)
-{
-    thread_count = thr_count; // No. of threads
+int init_mat_vec_mul(int thr_count) {
+    thread_count = thr_count;  // No. of threads
 
     threads = malloc(thread_count * sizeof(pthread_t));
     con = malloc(thread_count * sizeof(pthread_cond_t));
@@ -142,26 +141,25 @@ int init_mat_vec_mul(int thr_count)
     thread_datas = malloc(thread_count * sizeof(struct thread_data));
 
     // Initialize and create the specified amount of threads
-    for (int i = 0; i < thread_count; i++)
-    {
+    for (int i = 0; i < thread_count; i++) {
         // Initialize condition variables and mutex
         pthread_cond_init(&con[i], NULL);
         pthread_mutex_init(&mutex[i], NULL);
-
+        
         // Set the parameters of the thread data structure and initialize it according to the specific requirements
         thread_datas[i].out = NULL;
-        thread_datas[i].vec = NULL;
+        thread_datas[i].vec = NULL; 
         thread_datas[i].mat = NULL;
         thread_datas[i].col = 0;
-        thread_datas[i].row = 0;
+        thread_datas[i].row = 0; 
         thread_datas[i].work_start = malloc(sizeof(int)); // Allocate memory for work_start
         thread_datas[i].work_done = malloc(sizeof(int));  // Allocate memory for work_done
-        *(thread_datas[i].work_start) = 0;                // Initialize work_start to 0
-        *(thread_datas[i].work_done) = 0;                 // Initialize work_done to 0
+        *(thread_datas[i].work_start) = 0;  // Initialize work_start to 0
+        *(thread_datas[i].work_done) = 0;   // Initialize work_done to 0
 
         printf("Creating thread %d\n", i); // print the info of threads
         // Create a thread and pass the address of the thread data structure as an argument
-        pthread_create(&threads[i], NULL, thr_func, &thread_datas[i]);
+        pthread_create(&threads[i], NULL, thr_func, (void*)i);  // 传递线程 ID 作为参数
     }
 
     sleep(0); // Threads will fall asleep immediately
@@ -221,21 +219,18 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 // b. Wait until all threads to exit and collect system usage of threads
 // c. Collect system usage of main thread, and display both usage of each thread and main thread
 // d. Clear all resources related with multi-threading, and return
-int close_mat_vec_mul()
-{
+int close_mat_vec_mul() {
     // Signal all threads to terminate.
-    for (int i = 0; i < thread_count; ++i)
-    {
+    for (int i = 0; i < thread_count; ++i) {
         pthread_mutex_lock(&mutex[i]);
-        terminate = 1;                // Set terminate flag to a non-zero value
+        terminate = 1; // Set terminate flag to a non-zero value
         pthread_cond_signal(&con[i]); // Wake up the thread
         pthread_mutex_unlock(&mutex[i]);
     }
 
     // Join all threads to make sure they have finished.
-    for (int i = 0; i < thread_count; ++i)
-    {
-        pthread_join(thread_datas[i].thread_id, NULL);
+    for (int i = 0; i < thread_count; ++i) {
+        pthread_join(threads[i], NULL);
 
         // Print resource usage of each thread
         printf("Thread %d has completed - user: %ld.%06ld s, system: %ld.%06ld s\n",
@@ -251,15 +246,17 @@ int close_mat_vec_mul()
            (long)main_usage.ru_stime.tv_sec, (long)main_usage.ru_stime.tv_usec);
 
     // Clean up resources.
-    for (int i = 0; i < thread_count; ++i)
-    {
+    for (int i = 0; i < thread_count; ++i) {
         pthread_mutex_destroy(&mutex[i]);
         pthread_cond_destroy(&con[i]);
+        free(thread_datas[i].work_start);
+        free(thread_datas[i].work_done);
     }
     // Free the memory
     free(threads);
     free(con);
     free(mutex);
+    free(thread_datas);
 
     return 0;
 }
