@@ -69,39 +69,42 @@ struct thread_data
 };
 struct thread_data *thread_datas;
 
-// a. Fall asleep immediately after initialization
-// b. Can be woke up by main thread to work on assigned tasks
-// c. After finishing the task, inform main thread
-// d. Being able to collet the system usage (of itself) and terminate
+/*
+ * Thread function for matrix-vector multiplication.
+ *
+ * This function represents the behavior of each thread in the parallel matrix-vector
+ * multiplication. It is responsible for computing a subset of rows assigned to the
+ * thread and updating the output vector. The thread can be controlled by the main thread,
+ * and it can collect its own system usage before termination.
+ *
+ * Parameters:
+ *   - arg: Thread ID passed as an intptr_t argument.
+ *
+ * Behavior:
+ * a. Falls asleep immediately after initialization.
+ * b. Can be woken up by the main thread to work on assigned tasks.
+ * c. After finishing the task, informs the main thread.
+ * d. Is able to collect its system usage and terminate when instructed.
+ */
 void *thr_func(void *arg)
 {
-    intptr_t id = (intptr_t)arg;  // Cast argument to intptr_t to get the thread id
+    intptr_t id = (intptr_t)arg;  // Cast argument to intptr_t to get the thread ID
     int start_row, end_row;
-
-    //printf("Thread %ld started\n", id);
-
     while (1)
     {
         pthread_mutex_lock(&mutex[id]);
-        //printf("Thread %ld waiting for work_start\n", id);
         while (!*(thread_datas[id].work_start) && !terminate)
         {
-            //printf("Thread %ld waiting for work_start...\n", id);
             pthread_cond_wait(&con[id], &mutex[id]);
         }
-
-        //printf("Thread %ld work_start received\n", id);
-
         if (terminate)
         {
             pthread_mutex_unlock(&mutex[id]);
-            break; // Exit the thread loop if termination flag is set
+            break; // Exit the thread loop if the termination flag is set
         }
-
         // Compute the number of rows per thread each time work is started
-        int rows_per_thread = thread_datas[id].row / thread_count; // Compute number of rows per thread
+        int rows_per_thread = thread_datas[id].row / thread_count; // Compute the number of rows per thread
         int extra_rows = thread_datas[id].row % thread_count;      // Compute the remaining rows
-
         // Determine start and end rows for this thread
         start_row = id * rows_per_thread;
         end_row = (id + 1) * rows_per_thread - 1;
@@ -109,12 +112,8 @@ void *thr_func(void *arg)
         { // Last thread takes any extra rows
             end_row += extra_rows;
         }
-
-        //printf("Thread %ld working on rows %d to %d\n", id, start_row, end_row);
-
         *(thread_datas[id].work_start) = 0; // Reset the work_start flag
         pthread_mutex_unlock(&mutex[id]);
-
         // Perform matrix-vector multiplication for the assigned rows
         for (int i = start_row; i <= end_row; i++)
         {
@@ -126,22 +125,20 @@ void *thr_func(void *arg)
             thread_datas[id].out[i] = sum;
         }
         getrusage(RUSAGE_SELF, &thread_datas[id].usage);
-
         // Signal that this thread's work is done
         pthread_mutex_lock(&mutex[id]);
         *(thread_datas[id].work_done) = 1;
         pthread_cond_signal(&con[id]);
         pthread_mutex_unlock(&mutex[id]);
     }
-
-    // printf("Thread %ld exiting\n", id); // for debug
     return NULL;
 }
 
-
-// a. Create n threads
-// b. Let threads identify themselves, i.e., each thread knows it is the i-th threads
-// c. Let the created threads fall asleep immediately
+/*
+ * a. Create n threads
+ * b. Let threads identify themselves, i.e., each thread knows it is the i-th threads
+ * c. Let the created threads fall asleep immediately
+*/
 int init_mat_vec_mul(int thr_count) {
     thread_count = thr_count;  // No. of threads
     // Allocate memory for thread data sturctures
@@ -177,10 +174,10 @@ int init_mat_vec_mul(int thr_count) {
     return 0;
 }
 
-// a. Assign new parameters (out, vec, mat, col, row) to threads
-// b. Wake up threads to do calculation
-// c. Main thread wait until all threads finished task, and then return
 /*
+ * a. Assign new parameters (out, vec, mat, col, row) to threads
+ * b. Wake up threads to do calculation
+ * c. Main thread wait until all threads finished task, and then return
  * Wait for all threads to finish their work and reset the work_done flags.
  *
  * Parameters:
@@ -262,52 +259,37 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
     wait_for_threads(thread_datas, mutex, con, thread_count);
 }
 
-// a. Wake up threads to collect the system usage (of themselves) and terminates
-// b. Wait until all threads to exit and collect system usage of threads
-// c. Collect system usage of main thread, and display both usage of each thread and main thread
-// d. Clear all resources related with multi-threading, and return
 /*
+ * a. Wake up threads to collect the system usage (of themselves) and terminates
+ * b. Wait until all threads to exit and collect system usage of threads
+ * c. Collect system usage of main thread, and display both usage of each thread and main thread
+ * d. Clear all resources related with multi-threading, and return
  * Wait for all threads to complete their tasks and reset the work_done flags.
- *
- * Parameters:
- *   - thread_datas: Array of thread data structures.
- *   - mutex: Array of mutexes for synchronization.
- *   - con: Array of condition variables for signaling.
- *   - thread_count: Number of threads.
- */
+*/
 int close_mat_vec_mul() {
-    // Signal all threads to terminate.
     for (int i = 0; i < thread_count; ++i) {
+        // Signal all threads to terminate.
         pthread_mutex_lock(&mutex[i]);
         terminate = 1; // Set terminate flag to a non-zero value
         pthread_cond_signal(&con[i]); // Wake up the thread
         pthread_mutex_unlock(&mutex[i]);
-    }
-
-    // Join all threads to make sure they have finished.
-    for (int i = 0; i < thread_count; ++i) {
+        // Join all threads to make sure they have finished.
         pthread_join(threads[i], NULL);
-
         // Print resource usage of each thread
         printf("Thread %d has completed - user: %ld.%06ld s, system: %ld.%06ld s\n",
                i,
                (long)thread_datas[i].usage.ru_utime.tv_sec, (long)thread_datas[i].usage.ru_utime.tv_usec,
                (long)thread_datas[i].usage.ru_stime.tv_sec, (long)thread_datas[i].usage.ru_stime.tv_usec);
+        // Clean up resources.
+        pthread_mutex_destroy(&mutex[i]);    
+        free(thread_datas[i].work_start);
+        free(thread_datas[i].work_done);
     }
-
     // Get and print the main thread's resource usage.
     getrusage(RUSAGE_SELF, &main_usage);
     printf("main thread - user: %ld.%06ld s, system: %ld.%06ld s\n",
            (long)main_usage.ru_utime.tv_sec, (long)main_usage.ru_utime.tv_usec,
            (long)main_usage.ru_stime.tv_sec, (long)main_usage.ru_stime.tv_usec);
-
-    // Clean up resources.
-    for (int i = 0; i < thread_count; ++i) {
-        pthread_mutex_destroy(&mutex[i]);
-        pthread_cond_destroy(&con[i]);
-        free(thread_datas[i].work_start);
-        free(thread_datas[i].work_done);
-    }
     // Free the memory
     free(threads);
     free(con);
