@@ -255,6 +255,7 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         return;
     }
     // If thread_count is not 0, perform matrix-vector multiplication sequentially
+    // GPT code start here
     for (int i = 0; i < row; i++)
     {
         float val = 0.0f;
@@ -266,7 +267,7 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         // Assign the result to the output vector
         out[i] = val;
     }
-    
+    // GPT code end here
 }
 
 /*
