@@ -78,19 +78,19 @@ void *thr_func(void *arg)
     intptr_t id = (intptr_t)arg;  // Cast argument to intptr_t to get the thread id
     int start_row, end_row;
 
-    printf("Thread %ld started\n", id);
+    //printf("Thread %ld started\n", id);
 
     while (1)
     {
         pthread_mutex_lock(&mutex[id]);
-        printf("Thread %ld waiting for work_start\n", id);
+        //printf("Thread %ld waiting for work_start\n", id);
         while (!*(thread_datas[id].work_start) && !terminate)
         {
-            printf("Thread %ld waiting for work_start...\n", id);
+            //printf("Thread %ld waiting for work_start...\n", id);
             pthread_cond_wait(&con[id], &mutex[id]);
         }
 
-        printf("Thread %ld work_start received\n", id);
+        //printf("Thread %ld work_start received\n", id);
 
         if (terminate)
         {
@@ -110,7 +110,7 @@ void *thr_func(void *arg)
             end_row += extra_rows;
         }
 
-        printf("Thread %ld working on rows %d to %d\n", id, start_row, end_row);
+        //printf("Thread %ld working on rows %d to %d\n", id, start_row, end_row);
 
         *(thread_datas[id].work_start) = 0; // Reset the work_start flag
         pthread_mutex_unlock(&mutex[id]);
@@ -134,7 +134,7 @@ void *thr_func(void *arg)
         pthread_mutex_unlock(&mutex[id]);
     }
 
-    printf("Thread %ld exiting\n", id); // for debug
+    // printf("Thread %ld exiting\n", id); // for debug
     return NULL;
 }
 
@@ -167,12 +167,12 @@ int init_mat_vec_mul(int thr_count) {
         *(thread_datas[i].work_start) = 0;  // Initialize work_start to 0
         *(thread_datas[i].work_done) = 0;   // Initialize work_done to 0
 
-        printf("Creating thread %d\n", i); // print the info of threads
+        //printf("Creating thread %d\n", i); // print the info of threads
 
         // Create a thread and pass the address of the thread data structure as an argument
         intptr_t thread_id = (intptr_t)i;
         pthread_create(&threads[i], NULL, thr_func, (void*)thread_id);  // 传递线程 ID 作为参数
-        printf("Thread %d: %ld\n", i, (long)threads[i]); // for debug
+        //printf("Thread %d: %ld\n", i, (long)threads[i]); // for debug
     }
 
     sleep(0); // Threads will fall asleep immediately
@@ -186,7 +186,7 @@ int init_mat_vec_mul(int thr_count) {
 void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 {
     terminate = 0;  // Reset terminate flag at the beginning of the function
-    printf("mat_vec_mul start\n");
+    //printf("mat_vec_mul start\n");
     if (thread_count == 0)
     {
         // Perform matrix-vector multiplication sequentially
@@ -202,7 +202,6 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         return;
     }
 
-    // Assign the new parameters to the threads and signal threads to start work
     // Assign the new parameters to the threads and signal threads to start work
     for (int i = 0; i < thread_count; i++)
     {
@@ -229,7 +228,7 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         *(thread_datas[i].work_done) = 0; // Reset the work_done flag
         pthread_mutex_unlock(&mutex[i]);
     }
-    printf("mat_vec_mul end\n");
+    //printf("mat_vec_mul end\n");
 }
 
 // a. Wake up threads to collect the system usage (of themselves) and terminates
