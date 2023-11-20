@@ -56,7 +56,7 @@ int terminate = 0;        // Flag indicating when threads should exit
 // Structure to hold thread arguments
 struct thread_data
 {
-    pthread_t thread_id;
+    pthread_t thread_id; 
     float *out; // Pointer to the output vector
     float *vec;
     float *mat;      // Pointer to the matrix
@@ -167,12 +167,9 @@ int init_mat_vec_mul(int thr_count) {
         *(thread_datas[i].work_start) = 0;  // Initialize work_start to 0
         *(thread_datas[i].work_done) = 0;   // Initialize work_done to 0
 
-        //printf("Creating thread %d\n", i); // print the info of threads
-
         // Create a thread and pass the address of the thread data structure as an argument
         intptr_t thread_id = (intptr_t)i;
-        pthread_create(&threads[i], NULL, thr_func, (void*)thread_id);  // 浼犻?掔嚎绋? ID 浣滀负鍙傛暟
-        //printf("Thread %d: %ld\n", i, (long)threads[i]); // for debug
+        pthread_create(&threads[i], NULL, thr_func, (void*)thread_id); 
     }
 
     sleep(0); // Threads will fall asleep immediately
@@ -228,7 +225,6 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
         *(thread_datas[i].work_done) = 0; // Reset the work_done flag
         pthread_mutex_unlock(&mutex[i]);
     }
-    //printf("mat_vec_mul end\n");
 }
 
 // a. Wake up threads to collect the system usage (of themselves) and terminates
