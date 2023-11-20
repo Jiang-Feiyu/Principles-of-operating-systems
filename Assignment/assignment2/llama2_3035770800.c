@@ -5,6 +5,12 @@ PLEASE WRITE DOWN FOLLOWING INFO BEFORE SUBMISSION
 * UID : 3035770800
 * Development Platform: Vscode (SSH: workbrench2)
 * Remark: (How much you implemented?)
+*   - Documentation - finished
+*   - Report - finished
+*   - Implementation
+*       - Correct result & multi-threading
+*       - Achieve > 10% acceleration with sequential by multi-threads
+*       - Reuse threads in multi-threading
 * How to compile: (gcc -o llama2_[UID] llama2_[UID].c utilities.c -O2 -pthread -lm)
 
 Please download the model and tokenizer to the same folder:
@@ -115,16 +121,18 @@ void *thr_func(void *arg)
         *(thread_datas[id].work_start) = 0; // Reset the work_start flag
         pthread_mutex_unlock(&mutex[id]);
         // Perform matrix-vector multiplication for the assigned rows
+        // GPT code start from here
         for (int i = start_row; i <= end_row; i++)
         {
-            float sum = 0.0f;
+            float result = 0.0f;
             for (int j = 0; j < thread_datas[id].col; j++)
             {
-                sum += thread_datas[id].mat[i * thread_datas[id].col + j] * thread_datas[id].vec[j];
+                result += thread_datas[id].mat[i * thread_datas[id].col + j] * thread_datas[id].vec[j];
             }
-            thread_datas[id].out[i] = sum;
+            thread_datas[id].out[i] = result;
         }
         getrusage(RUSAGE_SELF, &thread_datas[id].usage);
+        // GPT code end here
         // Signal that this thread's work is done
         pthread_mutex_lock(&mutex[id]);
         *(thread_datas[id].work_done) = 1;
@@ -150,9 +158,12 @@ int init_mat_vec_mul(int thr_count) {
     // Initialize and create the specified amount of threads
     for (int i = 0; i < thread_count; i++) {
         // Initialize condition variables and mutex
-        pthread_cond_init(&con[i], NULL);
-        pthread_mutex_init(&mutex[i], NULL);
-        
+        pthread_condattr_t cond_attr;
+        pthread_condattr_init(&cond_attr);
+        pthread_cond_init(&con[i], &cond_attr);
+        pthread_mutexattr_t mutex_attr;
+        pthread_mutexattr_init(&mutex_attr);
+        pthread_mutex_init(&mutex[i], &mutex_attr);
         // Set the parameters of the thread data structure and initialize it according to the specific requirements
         thread_datas[i].out = NULL;
         thread_datas[i].vec = NULL; 
@@ -269,17 +280,19 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 int close_mat_vec_mul() {
     for (int i = 0; i < thread_count; ++i) {
         // Signal all threads to terminate.
-        pthread_mutex_lock(&mutex[i]);
         terminate = 1; // Set terminate flag to a non-zero value
+        pthread_mutex_lock(&mutex[i]);
         pthread_cond_signal(&con[i]); // Wake up the thread
         pthread_mutex_unlock(&mutex[i]);
-        // Join all threads to make sure they have finished.
-        pthread_join(threads[i], NULL);
         // Print resource usage of each thread
+        // GPT code start here
         printf("Thread %d has completed - user: %ld.%06ld s, system: %ld.%06ld s\n",
                i,
                (long)thread_datas[i].usage.ru_utime.tv_sec, (long)thread_datas[i].usage.ru_utime.tv_usec,
                (long)thread_datas[i].usage.ru_stime.tv_sec, (long)thread_datas[i].usage.ru_stime.tv_usec);
+        // GPT code end here
+        // Join all threads to make sure they have finished.
+        pthread_join(threads[i], NULL);
         // Clean up resources.
         pthread_mutex_destroy(&mutex[i]);    
         free(thread_datas[i].work_start);
@@ -287,9 +300,11 @@ int close_mat_vec_mul() {
     }
     // Get and print the main thread's resource usage.
     getrusage(RUSAGE_SELF, &main_usage);
+    // GPT code start here
     printf("main thread - user: %ld.%06ld s, system: %ld.%06ld s\n",
            (long)main_usage.ru_utime.tv_sec, (long)main_usage.ru_utime.tv_usec,
            (long)main_usage.ru_stime.tv_sec, (long)main_usage.ru_stime.tv_usec);
+    // GPT code end here
     // Free the memory
     free(threads);
     free(con);
