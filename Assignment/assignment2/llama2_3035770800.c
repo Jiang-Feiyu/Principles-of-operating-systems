@@ -266,6 +266,15 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 // b. Wait until all threads to exit and collect system usage of threads
 // c. Collect system usage of main thread, and display both usage of each thread and main thread
 // d. Clear all resources related with multi-threading, and return
+/*
+ * Wait for all threads to complete their tasks and reset the work_done flags.
+ *
+ * Parameters:
+ *   - thread_datas: Array of thread data structures.
+ *   - mutex: Array of mutexes for synchronization.
+ *   - con: Array of condition variables for signaling.
+ *   - thread_count: Number of threads.
+ */
 int close_mat_vec_mul() {
     // Signal all threads to terminate.
     for (int i = 0; i < thread_count; ++i) {
