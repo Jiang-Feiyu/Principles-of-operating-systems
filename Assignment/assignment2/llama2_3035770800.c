@@ -144,7 +144,7 @@ void *thr_func(void *arg)
 // c. Let the created threads fall asleep immediately
 int init_mat_vec_mul(int thr_count) {
     thread_count = thr_count;  // No. of threads
-
+    // Allocate memory for thread data sturctures
     threads = malloc(thread_count * sizeof(pthread_t));
     con = malloc(thread_count * sizeof(pthread_cond_t));
     mutex = malloc(thread_count * sizeof(pthread_mutex_t));
