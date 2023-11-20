@@ -180,51 +180,86 @@ int init_mat_vec_mul(int thr_count) {
 // a. Assign new parameters (out, vec, mat, col, row) to threads
 // b. Wake up threads to do calculation
 // c. Main thread wait until all threads finished task, and then return
+/*
+ * Wait for all threads to finish their work and reset the work_done flags.
+ *
+ * Parameters:
+ *   - thread_datas: Array of thread data structures.
+ *   - mutex: Array of mutexes for synchronization.
+ *   - con: Array of condition variables for signaling.
+ *   - thread_count: Number of threads.
+ */
+void wait_for_threads(struct thread_data *thread_datas, pthread_mutex_t *mutex, pthread_cond_t *con, int thread_count)
+{
+    for (int i = 0; i < thread_count; i++)
+    {
+        pthread_mutex_lock(&mutex[i]);
+        // Wait until the thread signals that it has finished its work
+        while (!*(thread_datas[i].work_done))
+        {
+            pthread_cond_wait(&con[i], &mutex[i]);
+        }
+        // Reset the work_done flag after the thread has finished its work
+        *(thread_datas[i].work_done) = 0;
+        pthread_mutex_unlock(&mutex[i]);
+    }
+}
+
+/*
+ * Perform matrix-vector multiplication, optionally using multi-threading.
+ *
+ * If thread_count is 0, perform matrix-vector multiplication sequentially.
+ * Otherwise, assign new parameters to threads and signal them to start work.
+ * Wait for all threads to finish before returning.
+ *
+ * Parameters:
+ *   - out: Pointer to the output vector.
+ *   - vec: Pointer to the input vector.
+ *   - mat: Pointer to the matrix.
+ *   - col: Number of columns in the matrix.
+ *   - row: Number of rows in the matrix.
+ */
 void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 {
     terminate = 0;  // Reset terminate flag at the beginning of the function
     //printf("mat_vec_mul start\n");
+
+    // If thread_count is 0, perform matrix-vector multiplication sequentially
     if (thread_count == 0)
     {
-        // Perform matrix-vector multiplication sequentially
         for (int i = 0; i < row; i++)
         {
             float val = 0.0f;
+            // Compute the dot product of the i-th row of the matrix and the input vector
             for (int j = 0; j < col; j++)
             {
                 val += mat[i * col + j] * vec[j];
             }
+            // Assign the result to the output vector
             out[i] = val;
         }
         return;
     }
 
-    // Assign the new parameters to the threads and signal threads to start work
+    // Assign new parameters to threads and signal them to start work
     for (int i = 0; i < thread_count; i++)
     {
         pthread_mutex_lock(&mutex[i]);
+        // Set thread parameters
         thread_datas[i].out = out;
         thread_datas[i].vec = vec;
         thread_datas[i].mat = mat;
         thread_datas[i].col = col;
         thread_datas[i].row = row;
-        *(thread_datas[i].work_done) = 0;  // Reset the work_done flag
-        *(thread_datas[i].work_start) = 1; // Signal the thread to start work
+        // Reset the work_done flag and signal the thread to start work
+        *(thread_datas[i].work_done) = 0;
+        *(thread_datas[i].work_start) = 1;
         pthread_cond_signal(&con[i]);
         pthread_mutex_unlock(&mutex[i]);
     }
 
     // Wait for all threads to finish
-    for (int i = 0; i < thread_count; i++)
-    {
-        pthread_mutex_lock(&mutex[i]);
-        while (!*(thread_datas[i].work_done))
-        {
-            pthread_cond_wait(&con[i], &mutex[i]);
-        }
-        *(thread_datas[i].work_done) = 0; // Reset the work_done flag
-        pthread_mutex_unlock(&mutex[i]);
-    }
+    wait_for_threads(thread_datas, mutex, con, thread_count);
 }
 
 // a. Wake up threads to collect the system usage (of themselves) and terminates
