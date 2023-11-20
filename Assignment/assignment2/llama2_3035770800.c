@@ -45,9 +45,6 @@ $ ./llama2_[UID] <seed> <thr_count>
 #include <unistd.h>
 #include <time.h>
 
-pthread_mutex_t terminate_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t terminate_cond = PTHREAD_COND_INITIALIZER;
-
 // Global Variables
 struct rusage main_usage; // get usage for main thread
 int thread_count;         // Number of threads
@@ -174,7 +171,7 @@ int init_mat_vec_mul(int thr_count) {
 
         // Create a thread and pass the address of the thread data structure as an argument
         intptr_t thread_id = (intptr_t)i;
-        pthread_create(&threads[i], NULL, thr_func, (void*)thread_id);  // 传递线程 ID 作为参数
+        pthread_create(&threads[i], NULL, thr_func, (void*)thread_id);  // 浼犻?掔嚎绋? ID 浣滀负鍙傛暟
         //printf("Thread %d: %ld\n", i, (long)threads[i]); // for debug
     }
 
@@ -240,24 +237,22 @@ void mat_vec_mul(float *out, float *vec, float *mat, int col, int row)
 // d. Clear all resources related with multi-threading, and return
 int close_mat_vec_mul() {
     // Signal all threads to terminate.
-    pthread_mutex_lock(&terminate_mutex);
-    terminate = 1; // Set terminate flag to a non-zero value
-    pthread_cond_broadcast(&terminate_cond); // Wake up all threads
-    pthread_mutex_unlock(&terminate_mutex);
+    for (int i = 0; i < thread_count; ++i) {
+        pthread_mutex_lock(&mutex[i]);
+        terminate = 1; // Set terminate flag to a non-zero value
+        pthread_cond_signal(&con[i]); // Wake up the thread
+        pthread_mutex_unlock(&mutex[i]);
+    }
 
-    // Join all threads and print resource usage.
+    // Join all threads to make sure they have finished.
     for (int i = 0; i < thread_count; ++i) {
         pthread_join(threads[i], NULL);
+
+        // Print resource usage of each thread
         printf("Thread %d has completed - user: %ld.%06ld s, system: %ld.%06ld s\n",
                i,
                (long)thread_datas[i].usage.ru_utime.tv_sec, (long)thread_datas[i].usage.ru_utime.tv_usec,
                (long)thread_datas[i].usage.ru_stime.tv_sec, (long)thread_datas[i].usage.ru_stime.tv_usec);
-
-        // Clean up resources for each thread.
-        pthread_mutex_destroy(&mutex[i]);
-        pthread_cond_destroy(&con[i]);
-        free(thread_datas[i].work_start);
-        free(thread_datas[i].work_done);
     }
 
     // Get and print the main thread's resource usage.
@@ -267,14 +262,17 @@ int close_mat_vec_mul() {
            (long)main_usage.ru_stime.tv_sec, (long)main_usage.ru_stime.tv_usec);
 
     // Clean up resources.
+    for (int i = 0; i < thread_count; ++i) {
+        pthread_mutex_destroy(&mutex[i]);
+        pthread_cond_destroy(&con[i]);
+        free(thread_datas[i].work_start);
+        free(thread_datas[i].work_done);
+    }
+    // Free the memory
     free(threads);
     free(con);
     free(mutex);
     free(thread_datas);
-
-    // Destroy the terminate mutex and condition variable.
-    pthread_mutex_destroy(&terminate_mutex);
-    pthread_cond_destroy(&terminate_cond);
 
     return 0;
 }
