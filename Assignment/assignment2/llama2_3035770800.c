@@ -287,9 +287,9 @@ int close_mat_vec_mul() {
         // Print resource usage of each thread
         // GPT code start here
         printf("Thread %d has completed - user: %ld.%06ld s, system: %ld.%06ld s\n",
-               i,
-               (long)thread_datas[i].usage.ru_utime.tv_sec, (long)thread_datas[i].usage.ru_utime.tv_usec,
-               (long)thread_datas[i].usage.ru_stime.tv_sec, (long)thread_datas[i].usage.ru_stime.tv_usec);
+        i,
+        thread_datas[i].usage.ru_utime.tv_sec, thread_datas[i].usage.ru_utime.tv_usec,
+        thread_datas[i].usage.ru_stime.tv_sec, thread_datas[i].usage.ru_stime.tv_usec);
         // GPT code end here
         // Join all threads to make sure they have finished.
         pthread_join(threads[i], NULL);
@@ -302,8 +302,8 @@ int close_mat_vec_mul() {
     getrusage(RUSAGE_SELF, &main_usage);
     // GPT code start here
     printf("main thread - user: %ld.%06ld s, system: %ld.%06ld s\n",
-           (long)main_usage.ru_utime.tv_sec, (long)main_usage.ru_utime.tv_usec,
-           (long)main_usage.ru_stime.tv_sec, (long)main_usage.ru_stime.tv_usec);
+       main_usage.ru_utime.tv_sec, main_usage.ru_utime.tv_usec,
+       main_usage.ru_stime.tv_sec, main_usage.ru_stime.tv_usec);
     // GPT code end here
     // Free the memory
     free(threads);
